@@ -1,0 +1,5 @@
+string component_name
+string model_name
+string script_path
+---
+bool success
