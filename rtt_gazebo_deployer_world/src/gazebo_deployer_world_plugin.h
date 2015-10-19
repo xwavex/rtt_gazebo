@@ -24,6 +24,10 @@
 //#include <rtt/transports/corba/corba.h>
 //#include <rtt/transports/corba/TaskContextServer.hpp>
 
+// Custom ROS msgs
+#include <rtt_gazebo_msgs/DeployRTTWithModel.h>
+#include <ros/ros.h>
+
 #include "RTTComponentPack.h"
 
 namespace rtt_gazebo_deployer_world {
@@ -43,20 +47,6 @@ public:
 	 */
 	void Load(gazebo::physics::WorldPtr _parent, sdf::ElementPtr sdf);
 
-	/*
-	 * [component name, component type, component package, (optional) model to attach] TODO
-	 * Deploy new rtt component (Threaded)
-	 *
-	 * 1. If model param. != NULL -> poll until model is loaded (with timeout)
-	 * 2. Load rtt component
-	 * 3. deploy and configure rtt component
-	 *
-	 * X. Perhaps this needs to parse an entire Lua Deployment file... TODO TODO TODO
-	 */
-	void deployRTTComponentWithModel(const std::string& model_component_package,
-			const std::string& model_component_type,
-			const std::string& model_component_name,
-			const std::string& model_name);
 
 	/*
 	 * Deploy random RTT Component
@@ -81,8 +71,27 @@ public:
 	void loadLuaScript(std::string lua_script);
 
 private:
+	/*
+	 * [component name, component type, component package, (optional) model to attach] TODO
+	 * Deploy new rtt component (Threaded)
+	 *
+	 * 1. If model param. != NULL -> poll until model is loaded (with timeout)
+	 * 2. Load rtt component
+	 * 3. deploy and configure rtt component
+	 *
+	 * X. Perhaps this needs to parse an entire Lua Deployment file... TODO TODO TODO
+	 */
+	// callback function for service
+	bool deployRTTComponentWithModel_cb(
+			rtt_gazebo_msgs::DeployRTTWithModel::Request& request,
+			rtt_gazebo_msgs::DeployRTTWithModel::Response& response);
+
 	// only once condition
 	bool onceDone;
+
+	ros::NodeHandle nh_;
+
+	ros::ServiceServer deployWithModel_service_;
 
 	// mutex
 	static boost::mutex deferred_load_mutex;

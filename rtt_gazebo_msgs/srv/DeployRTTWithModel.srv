@@ -1,4 +1,6 @@
 string component_name
+string component_type
+string component_package
 string model_name
 string script_path
 ---

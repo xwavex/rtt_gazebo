@@ -15,11 +15,15 @@
   <build_depend>rtt_ros</build_depend>
   <build_depend>rtt_rosclock</build_depend>
   <build_depend>cmake_modules</build_depend>
+  <build_depend>roscpp</build_depend><!-- Not sure if needed -->
+  <build_depend>rtt_gazebo_msgs</build_depend>
 
   <run_depend>gazebo</run_depend>
   <run_depend>gazebo_ros</run_depend>
   <run_depend>rtt_ros</run_depend>
   <run_depend>rtt_rosclock</run_depend>
+  <run_depend>roscpp</run_depend><!-- Not sure if needed -->
+  <run_depend>rtt_gazebo_msgs</run_depend>
 
   <export>
   </export>
