@@ -47,7 +47,6 @@ public:
 	 */
 	void Load(gazebo::physics::WorldPtr _parent, sdf::ElementPtr sdf);
 
-
 	/*
 	 * Deploy random RTT Component
 	 */
@@ -71,6 +70,7 @@ public:
 	void loadLuaScript(std::string lua_script);
 
 private:
+	bool ends_with(const std::string& str, const std::string& end);
 	/*
 	 * [component name, component type, component package, (optional) model to attach] TODO
 	 * Deploy new rtt component (Threaded)

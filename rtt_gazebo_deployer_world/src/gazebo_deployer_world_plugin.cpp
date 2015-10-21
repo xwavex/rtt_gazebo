@@ -6,6 +6,7 @@
  */
 // Boost
 #include <boost/bind.hpp>
+#include <boost/weak_ptr.hpp>
 
 // Gazebo
 #include <gazebo/gazebo.hh>
@@ -158,8 +159,15 @@ bool GazeboDeployerWorldPlugin::deployRTTComponentWithModel_cb(
 	RTTComponentPack pack(gazebo_update_caller, specModel, new_rtt_component);
 	all_components_.push_back(pack);
 
-	//std::string testOps =	"setActivity(\"lwr_gazebo\",0.001,HighestPriority,ORO_SCHED_RT)\nlwr_gazebo.configure()\nlwr_gazebo.start()";
-	loadOrocosScriptFromFile(request.script_path);
+	if (ends_with(request.script_path, ".ops")) {
+		loadOrocosScriptFromFile(request.script_path);
+	} else if (ends_with(request.script_path, ".lua")) {
+		loadLuaScriptFromFile(request.script_path);
+	} else {
+		gzerr << "Script is neither .ops nor .lua. Check file-extensions."
+				<< std::endl;
+		return false;
+	}
 
 	if (!onceDone) {
 		// GLOBAL! ONLY ONCE???? Listen to the update event. This event is broadcast every simulation iteration. TODO
@@ -185,7 +193,8 @@ GazeboDeployerWorldPlugin::~GazeboDeployerWorldPlugin() {
 		gazebo::event::Events::DisconnectWorldUpdateBegin(*it);
 	}
 
-	//TODO test only
+	//deployer->getPeerList() // DO ot this way, do kill everything that is running in the deployer?
+
 	for (std::vector<RTTComponentPack>::iterator componentPackItr =
 			all_components_.begin(); componentPackItr != all_components_.end();
 			++componentPackItr) {
@@ -282,17 +291,34 @@ void GazeboDeployerWorldPlugin::deployRTTComponent(
 // Called by the world update start event
 void GazeboDeployerWorldPlugin::gazeboUpdate() {
 	RTT::Logger::Instance()->in("GazeboDeployerModelPlugin::gazeboUpdate");
-
 	boost::mutex::scoped_try_lock lock(deferred_load_mutex);
+	cout << "still updating??" << endl;
 
-	// check if model exists, unload component if not TODO
+	// check if model exists, unload component if not. Not sure if its working properly. Can't test it!
 
 	if (lock) {
 		// Call orocos RTT model component gazebo.update() operations
-		for (std::vector<RTTComponentPack>::iterator componentPackItr =
+		std::vector<RTTComponentPack>::iterator componentPackItr =
 				all_components_.begin();
-				componentPackItr != all_components_.end(); ++componentPackItr) {
-			(componentPackItr->gazeboUpdateCaller)(componentPackItr->modelPtr);
+
+		while (componentPackItr != all_components_.end()) {
+			std::cout << componentPackItr->rttComponent->getName() << ", "
+					<< componentPackItr->modelPtr.use_count() << std::endl;
+			if (componentPackItr->modelPtr.use_count() <= 0) {
+				cout << "removing: "
+						<< componentPackItr->rttComponent->getName()
+						<< " due to use_count: "
+						<< componentPackItr->modelPtr.use_count() << endl;
+				//stops execution of updateHook() of this component
+				componentPackItr->rttComponent->stop();
+				componentPackItr->rttComponent->cleanup();
+				//deployer-> // How to properly remove from deployer? TODO
+				componentPackItr = all_components_.erase(componentPackItr);
+			} else {
+				(componentPackItr->gazeboUpdateCaller)(
+						componentPackItr->modelPtr);
+				componentPackItr++;
+			}
 		}
 	}
 }
@@ -410,4 +436,16 @@ void GazeboDeployerWorldPlugin::loadLuaScript(std::string lua_script) {
 //			++it) {
 //		it->first->SetGravityMode(it->second);
 //	}
+}
+
+bool GazeboDeployerWorldPlugin::ends_with(const std::string& str,
+		const std::string& end) {
+	size_t slen = str.size(), elen = end.size();
+	if (slen < elen)
+		return false;
+	while (elen) {
+		if (str[--slen] != end[--elen])
+			return false;
+	}
+	return true;
 }

@@ -14,6 +14,8 @@
 #include <rtt/deployment/ComponentLoader.hpp>
 #include <rtt/OperationCaller.hpp>
 
+#include <boost/weak_ptr.hpp>
+
 namespace rtt_gazebo_deployer_world {
 /**
  * This class acts just as some kind of struct to combine rtt component, associated model and gazebo caller.
@@ -24,9 +26,8 @@ public:
 			RTT::OperationCaller<void(gazebo::physics::ModelPtr)> _gzUpdateCaller,
 			gazebo::physics::ModelPtr _mptr, RTT::TaskContext* _component);
 	virtual ~RTTComponentPack();
-
-	RTT::OperationCaller<void(gazebo::physics::ModelPtr)> gazeboUpdateCaller;
 	gazebo::physics::ModelPtr modelPtr;
+	RTT::OperationCaller<void(gazebo::physics::ModelPtr)> gazeboUpdateCaller;
 	RTT::TaskContext* rttComponent;
 };
 }
