@@ -5,7 +5,6 @@ project(rtt_gazebo_deployer_world)
 find_package(catkin REQUIRED COMPONENTS 
   cmake_modules)
 
-
 find_package(OROCOS-RTT REQUIRED COMPONENTS rtt-scripting rtt-transport-corba)
 include(${OROCOS-RTT_USE_FILE_PATH}/UseOROCOS-RTT.cmake )
 
@@ -15,6 +14,23 @@ find_package(Eigen REQUIRED)
 find_package(Boost COMPONENTS thread REQUIRED)
 
 find_package(Protobuf REQUIRED)
+
+# this must be done in the beginning to adjust the cmake path
+find_package(RSC 0.13 REQUIRED)
+message(STATUS "RSC version: ${RSC_VERSION}")
+include_directories(BEFORE SYSTEM ${RSC_INCLUDE_DIRS})
+add_definitions(${RSC_DEFINITIONS})
+link_directories(${RSC_LIBRARY_DIR})
+
+find_package(RSB 0.13 REQUIRED)	
+message(STATUS "RSB version: ${RSB_VERSION}")	
+include_directories(BEFORE SYSTEM ${RSB_INCLUDE_DIRS})	
+add_definitions(${RSB_DEFINITIONS})
+	
+find_package(RST COMPONENTS sandbox REQUIRED)
+message(STATUS "RST version: ${RST_VERSION}")	
+include_directories(BEFORE SYSTEM ${RST_INCLUDE_DIRS} ${RSTSANDBOX_INCLUDE_DIRS})	
+add_definitions(${RST_CFLAGS} ${RSTSANDBOX_CFLAGS})
 
 link_directories(
   ${GAZEBO_LIBRARY_DIRS}
@@ -53,6 +69,8 @@ target_link_libraries(${PROJECT_NAME}
   ${USE_OROCOS_LIBRARIES}
   ${Boost_LIBRARIES}
   ${PROTUBUF_LIBRARIES}
+  ${RSB_LIBRARIES}	
+  ${RST_LIBRARIES} 
 )
 
 set(CMAKE_BUILD_TYPE Debug)

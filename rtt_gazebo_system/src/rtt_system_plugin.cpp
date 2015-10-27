@@ -46,6 +46,7 @@ void RTTSystemPlugin::Load(int argc, char **argv)
 
   // Setup TaskContext server if necessary
   if(CORBA::is_nil(RTT::corba::TaskContextServer::orb)) {
+	  std::cout << "Launching ORB!" << std::endl;
     // Initialize orb
     RTT::corba::TaskContextServer::InitOrb(argc, argv);
     // Propcess orb requests in a thread

@@ -20,13 +20,15 @@
 #include <ocl/LoggingService.hpp>
 #include <rtt/Logger.hpp>
 
+// RSB
+#include <rsb/Factory.h>
+
+// RST
+#include <rst/cogimon/ModelComponentConfig.pb.h>
+
 //#include <rtt/scripting/Scripting.hpp>
 //#include <rtt/transports/corba/corba.h>
 //#include <rtt/transports/corba/TaskContextServer.hpp>
-
-// Custom ROS msgs
-#include <rtt_gazebo_msgs/DeployRTTWithModel.h>
-#include <ros/ros.h>
 
 #include "RTTComponentPack.h"
 
@@ -46,13 +48,6 @@ public:
 	 * sdf::ElementPtr sdf: Pointer the the SDF element of the plugin.
 	 */
 	void Load(gazebo::physics::WorldPtr _parent, sdf::ElementPtr sdf);
-
-	/*
-	 * Deploy random RTT Component
-	 */
-	void deployRTTComponent(const std::string& model_component_package,
-			const std::string& model_component_type,
-			const std::string& model_component_name);
 
 	// Called by the world update start event
 	void gazeboUpdate();
@@ -82,16 +77,12 @@ private:
 	 * X. Perhaps this needs to parse an entire Lua Deployment file... TODO TODO TODO
 	 */
 	// callback function for service
-	bool deployRTTComponentWithModel_cb(
-			rtt_gazebo_msgs::DeployRTTWithModel::Request& request,
-			rtt_gazebo_msgs::DeployRTTWithModel::Response& response);
+	boost::shared_ptr<bool> deployRTTComponentWithModel_cb(boost::shared_ptr<rst::cogimon::ModelComponentConfig> deployerConfig);
 
 	// only once condition
 	bool onceDone;
 
-	ros::NodeHandle nh_;
-
-	ros::ServiceServer deployWithModel_service_;
+	rsb::patterns::LocalServerPtr server;
 
 	// mutex
 	static boost::mutex deferred_load_mutex;

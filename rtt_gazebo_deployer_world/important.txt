@@ -1,0 +1,28 @@
+Deploy gazebo-rtt Bridge RSB command
+------------------------------------
+
+./rsb-toolscl0.13 call -l /vol/toolkit/nightly/trusty/x86_64/last/share/rst0.13/proto/sandbox/rst/cogimon/ModelComponentConfig.proto 'spread:/GazeboDeployerWorldPlugin/deployRTTComponentWithModel(pb:.rst.cogimon.ModelComponentConfig:{component_name:"lwr_gazebo" component_type:"LWRGazeboComponent" component_package:"rtt_lwr_gazebo" model_name:"kuka-lwr-arm" script:"test.ops"})'
+
+
+Set the right RTT_COMPONENT_PATH
+--------------------------------
+
+export RTT_COMPONENT_PATH=/homes/dwigand/code/cogimon/rosws/gazebo_world/devel/lib/orocos:$RTT_COMPONENT_PATH
+
+
+Daily CATKIN_MAKE command
+-------------------------
+
+catkin_make -j 4 -DRSC-CMake_DIR=/vol/toolkit/nightly/trusty/x86_64/last/share/rsc-cmake0.13 -DRST_DIR=/vol/toolkit/nightly/trusty/x86_64/last/share/rst0.13 -DRSB_DIR=/vol/toolkit/nightly/trusty/x86_64/last/share/rsb0.13 -DRSC_DIR=/vol/toolkit/nightly/trusty/x86_64/last/share/rsc0.13
+
+
+Eclipse CATKIN_MAKE command
+---------------------------
+
+catkin_make -j 4 --force-cmake -G"Eclipse CDT4 - Unix Makefiles" -DRSC-CMake_DIR=/vol/toolkit/nightly/trusty/x86_64/last/share/rsc-cmake0.13 -DRST_DIR=/vol/toolkit/nightly/trusty/x86_64/last/share/rst0.13 -DRSB_DIR=/vol/toolkit/nightly/trusty/x86_64/last/share/rsb0.13 -DRSC_DIR=/vol/toolkit/nightly/trusty/x86_64/last/share/rsc0.13 -DCMAKE_ECLIPSE_MAKE_ARGUMENTS=-j4
+
+
+Run Stuff
+---------
+
+roslaunch rtt_gazebo_deployer_world empty_world_plugin.launch

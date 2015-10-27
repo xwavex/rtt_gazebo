@@ -18,24 +18,17 @@
 #include <ocl/DeploymentComponent.hpp>
 #include <ocl/LoggingService.hpp>
 #include <rtt/Logger.hpp>
-//?
-//#include <ocl/TaskBrowser.hpp>
-//#include <rtt/transports/corba/corba.h>
-//#include <rtt/transports/corba/TaskContextServer.hpp>
 
 #include <rtt/scripting/Scripting.hpp>
 #include <rtt/plugin/PluginLoader.hpp>
-
-#include <rtt_ros/rtt_ros.h>
-#include <rtt_rosclock/rtt_rosclock.h>
-
-// RTT/ROS Simulation Clock Activity
 
 #include "gazebo_deployer_world_plugin.h"
 
 using namespace rtt_gazebo_deployer_world;
 using namespace std;
 using namespace gazebo;
+using namespace rsb;
+using namespace rsb::patterns;
 
 // Register this plugin with the simulator
 GZ_REGISTER_WORLD_PLUGIN(GazeboDeployerWorldPlugin);
@@ -43,87 +36,97 @@ GZ_REGISTER_WORLD_PLUGIN(GazeboDeployerWorldPlugin);
 boost::mutex GazeboDeployerWorldPlugin::deferred_load_mutex;
 
 GazeboDeployerWorldPlugin::GazeboDeployerWorldPlugin() :
-		gazebo::WorldPlugin(), onceDone(false), nh_(
-				"~gazebo_deployer_world_plugin") {
+		gazebo::WorldPlugin(), onceDone(false) {
 	cout << "Loading WORLD Plugin" << endl;
 
-	deployWithModel_service_ = nh_.advertiseService(
-			"deployRTTComponentWithModel",
-			&GazeboDeployerWorldPlugin::deployRTTComponentWithModel_cb, this);
-
+	Factory& factory = getFactory();
+	server = factory.createLocalServer("/GazeboDeployerWorldPlugin");
+	server->registerMethod("deployRTTComponentWithModel",
+			LocalServer::CallbackPtr(
+					new LocalServer::FunctionCallback<
+							rst::cogimon::ModelComponentConfig, bool>(
+							boost::bind(
+									&GazeboDeployerWorldPlugin::deployRTTComponentWithModel_cb,
+									this, _1))));
 }
 
-bool GazeboDeployerWorldPlugin::deployRTTComponentWithModel_cb(
-		rtt_gazebo_msgs::DeployRTTWithModel::Request& request,
-		rtt_gazebo_msgs::DeployRTTWithModel::Response& response) {
+boost::shared_ptr<bool> GazeboDeployerWorldPlugin::deployRTTComponentWithModel_cb(
+		boost::shared_ptr<rst::cogimon::ModelComponentConfig> deployerConfig) {
 
-	response.success = false;
-
-	std::cout << request.component_name << std::endl;
+	std::cout << deployerConfig->component_name() << std::endl;
 
 	boost::mutex::scoped_lock load_lock(deferred_load_mutex);
 
-	gazebo::physics::ModelPtr specModel = pollForModel(request.model_name,
-			1000);
+	gazebo::physics::ModelPtr specModel = pollForModel(
+			deployerConfig->model_name(), 1000);
 	if (!specModel) {
-		gzerr << "Model " << request.model_name
+		gzerr << "Model " << deployerConfig->model_name()
 				<< " could not be found. Skipping." << std::endl;
-		return false;
+		return boost::shared_ptr<bool>(new bool(false));
 	} else {
-		cout << "Found model " << request.model_name << "!" << endl;
+		cout << "Found model " << deployerConfig->model_name() << "!" << endl;
 	}
 
 	// deploy component
 	RTT::TaskContext* new_rtt_component = NULL;
 
-	// Import the package
-	if (!rtt_ros::import(request.component_package)) {
-		gzerr << "Could not import rtt_gazebo model component package: \""
-				<< request.component_package << "\"" << std::endl;
-		return false;
+	boost::shared_ptr<RTT::ComponentLoader> loader =
+			RTT::ComponentLoader::Instance();
+	cout << "loader->getComponentPath(): " << loader->getComponentPath()
+			<< endl;
+
+	// import RTT package // i.e. export RTT_COMPONENT_PATH=/homes/dwigand/code/cogimon/rosws/gazebo_world/devel/lib/orocos:$RTT_COMPONENT_PATH
+	if (loader->import(deployerConfig->component_package(),
+			loader->getComponentPath())) {
+		gzlog << "Importing " << deployerConfig->component_package()
+				<< ": Success" << endl;
+	} else {
+		gzerr << "Could not import " << deployerConfig->component_package()
+				<< " from " << loader->getComponentPath() << endl
+				<< "Try to set RTT_COMPONENT_PATH." << endl;
 	}
 
 	// Load the component
-	if (!deployer->loadComponent(request.component_name,
-			request.component_type)) {
+	if (!deployer->loadComponent(deployerConfig->component_name(),
+			deployerConfig->component_type())) {
 		gzerr << "Could not load rtt_gazebo model component: \""
-				<< request.component_type << "\"" << std::endl;
-		return false;
+				<< deployerConfig->component_type() << "\"" << std::endl;
+		return boost::shared_ptr<bool>(new bool(false));
 	}
 
 	// Get the model component from the deployer by name
-	if (deployer->hasPeer(request.component_name)) {
-		new_rtt_component = deployer->getPeer(request.component_name);
+	if (deployer->hasPeer(deployerConfig->component_name())) {
+		new_rtt_component = deployer->getPeer(deployerConfig->component_name());
 	} else {
 		gzerr
 				<< "SDF model plugin specified a special gazebo component to connect to the gazebo update, named \""
-				<< request.component_name
+				<< deployerConfig->component_name()
 				<< "\", but there is no peer by that name." << std::endl;
-		return false;
+		return boost::shared_ptr<bool>(new bool(false));
 	}
 
 	// Make sure the component has the required interfaces
 	if (new_rtt_component == NULL) {
 		gzerr << "RTT model component was not properly created." << std::endl;
-		return false;
+		return boost::shared_ptr<bool>(new bool(false));
 	}
 	if (!new_rtt_component->provides()->hasService("gazebo")) {
 		gzerr
 				<< "RTT model component does not have required \"gazebo\" service."
 				<< std::endl;
-		return false;
+		return boost::shared_ptr<bool>(new bool(false));
 	}
 	if (!new_rtt_component->provides("gazebo")->hasOperation("configure")) {
 		gzerr
 				<< "RTT model component does not have required \"gazebo.configure\" operation."
 				<< std::endl;
-		return false;
+		return boost::shared_ptr<bool>(new bool(false));
 	}
 	if (!new_rtt_component->provides("gazebo")->hasOperation("update")) {
 		gzerr
 				<< "RTT model component does not have required \"gazebo.update\" operation."
 				<< std::endl;
-		return false;
+		return boost::shared_ptr<bool>(new bool(false));
 	}
 
 	// Configure the component with the parent model
@@ -135,14 +138,14 @@ bool GazeboDeployerWorldPlugin::deployRTTComponentWithModel_cb(
 		gzerr
 				<< "RTT model component's \"gazebo.configure\" operation could not be connected. Check its signature."
 				<< std::endl;
-		return false;
+		return boost::shared_ptr<bool>(new bool(false));
 	}
 
 	if (!gazebo_configure(specModel)) {
 		gzerr
 				<< "RTT model component's \"gazebo.configure\" operation returned false."
 				<< std::endl;
-		return false;
+		return boost::shared_ptr<bool>(new bool(false));
 	}
 
 	// Get gazebo update function
@@ -153,20 +156,20 @@ bool GazeboDeployerWorldPlugin::deployRTTComponentWithModel_cb(
 		gzerr
 				<< "RTT model component's \"gazebo.update\" operation could not be connected. Check its signature."
 				<< std::endl;
-		return false;
+		return boost::shared_ptr<bool>(new bool(false));
 	}
 
 	RTTComponentPack pack(gazebo_update_caller, specModel, new_rtt_component);
 	all_components_.push_back(pack);
 
-	if (ends_with(request.script_path, ".ops")) {
-		loadOrocosScriptFromFile(request.script_path);
-	} else if (ends_with(request.script_path, ".lua")) {
-		loadLuaScriptFromFile(request.script_path);
+	if (ends_with(deployerConfig->script(), ".ops")) {
+		loadOrocosScriptFromFile(deployerConfig->script());
+	} else if (ends_with(deployerConfig->script(), ".lua")) {
+		loadLuaScriptFromFile(deployerConfig->script());
 	} else {
 		gzerr << "Script is neither .ops nor .lua. Check file-extensions."
 				<< std::endl;
-		return false;
+		return boost::shared_ptr<bool>(new bool(false));
 	}
 
 	if (!onceDone) {
@@ -179,10 +182,7 @@ bool GazeboDeployerWorldPlugin::deployRTTComponentWithModel_cb(
 		onceDone = true;
 		cout << "Connect to Gazebo Update Loop" << endl;
 	}
-
-	// return true or false representing the success of the deployment
-	response.success = true;
-	return true;
+	return boost::shared_ptr<bool>(new bool(true));
 }
 
 GazeboDeployerWorldPlugin::~GazeboDeployerWorldPlugin() {
@@ -212,19 +212,9 @@ void GazeboDeployerWorldPlugin::Load(gazebo::physics::WorldPtr _parent,
 
 	deployer = new OCL::DeploymentComponent("gazebo");
 
-	deployer->import("rtt_rosnode");
-	deployer->import("rtt_rosdeployment");
-	static_cast<RTT::TaskContext*>(deployer)->loadService("rosdeployment");
-
-//	std::string model_component_package = "rtt_lwr_gazebo";
-//	std::string model_component_type = "LWRGazeboComponent";
-//	std::string model_component_name = "lwr_gazebo";
-//	std::string model_name = "kuka-lwr-arm";
-//	boost::thread(
-//			boost::bind(&GazeboDeployerWorldPlugin::deployRTTComponentWithModel,
-//					this, model_component_package, model_component_type,
-//					model_component_name, model_name));
-
+//	deployer->import("rtt_rosnode");
+//	deployer->import("rtt_rosdeployment");
+//	static_cast<RTT::TaskContext*>(deployer)->loadService("rosdeployment"); // LOAD rsbdeployment TODO
 }
 
 gazebo::physics::ModelPtr GazeboDeployerWorldPlugin::pollForModel(
@@ -241,58 +231,12 @@ gazebo::physics::ModelPtr GazeboDeployerWorldPlugin::pollForModel(
 		}
 	}
 	return model;
-	//parent_model_->PrintEntityTree();
-}
-
-void GazeboDeployerWorldPlugin::deployRTTComponent(
-		const std::string& model_component_package,
-		const std::string& model_component_type,
-		const std::string& model_component_name) {
-	boost::mutex::scoped_lock load_lock(deferred_load_mutex);
-
-	// deploy component
-	RTT::TaskContext* new_rtt_component = NULL;
-
-	// Import the package
-	if (!rtt_ros::import(model_component_package)) {
-		gzerr << "Could not import rtt_gazebo model component package: \""
-				<< model_component_package << "\"" << std::endl;
-		return;
-	}
-
-	// Load the component
-	if (!deployer->loadComponent(model_component_name, model_component_type)) {
-		gzerr << "Could not load rtt_gazebo model component: \""
-				<< model_component_type << "\"" << std::endl;
-		return;
-	}
-
-	// Get the model component from the deployer by name
-	if (deployer->hasPeer(model_component_name)) {
-		new_rtt_component = deployer->getPeer(model_component_name);
-	} else {
-		gzerr << "Deployed Component " << model_component_name
-				<< " could not be found." << std::endl;
-		return;
-	}
-
-	// perhaps we need a mutex lock? TODO
-	deployed_rtt_components_.push_back(new_rtt_component);
-
-	// TODO launch scripts here
-
-	// ONLY tests TODO
-	new_rtt_component->configure();
-	//setActivity("lwr_gazebo",0.001,HighestPriority,ORO_SCHED_RT)
-	new_rtt_component->setActivity(new RTT::Activity(ORO_SCHED_RT, 1, 0.001));
-	new_rtt_component->start();
 }
 
 // Called by the world update start event
 void GazeboDeployerWorldPlugin::gazeboUpdate() {
 	RTT::Logger::Instance()->in("GazeboDeployerModelPlugin::gazeboUpdate");
 	boost::mutex::scoped_try_lock lock(deferred_load_mutex);
-	cout << "still updating??" << endl;
 
 	// check if model exists, unload component if not. Not sure if its working properly. Can't test it!
 
