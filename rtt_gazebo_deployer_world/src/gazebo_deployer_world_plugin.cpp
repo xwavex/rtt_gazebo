@@ -37,7 +37,19 @@ boost::mutex GazeboDeployerWorldPlugin::deferred_load_mutex;
 
 GazeboDeployerWorldPlugin::GazeboDeployerWorldPlugin() :
 		gazebo::WorldPlugin(), onceDone(false) {
-	cout << "Loading WORLD Plugin" << endl;
+	gzmsg << "Loading Gazebo RTT Deployer World Plugin" << endl;
+
+	loader = RTT::ComponentLoader::Instance();
+	gzmsg << "initial loader->getComponentPath(): "
+			<< loader->getComponentPath() << endl;
+
+	addNewOrocosComponentPath("/opt/ros/indigo/lib/orocos"); // TODO remove this, find a proper way around!
+
+	addNewOrocosComponentPath(
+			"/homes/dwigand/code/cogimon/rosws/gazebo_world/devel/lib/orocos"); // only for convenience TODO remove
+
+	gzmsg << "New loader->getComponentPath(): " << loader->getComponentPath()
+			<< endl;
 
 	Factory& factory = getFactory();
 	server = factory.createLocalServer("/GazeboDeployerWorldPlugin");
@@ -48,6 +60,126 @@ GazeboDeployerWorldPlugin::GazeboDeployerWorldPlugin() :
 							boost::bind(
 									&GazeboDeployerWorldPlugin::deployRTTComponentWithModel_cb,
 									this, _1))));
+	server->registerMethod("spawnModel",
+			LocalServer::CallbackPtr(
+					new LocalServer::FunctionCallback<string, void>(
+							boost::bind(
+									&GazeboDeployerWorldPlugin::spawnModel_cb,
+									this, _1))));
+	server->registerMethod("addOrocosComponentIncludePath",
+			LocalServer::CallbackPtr(
+					new LocalServer::FunctionCallback<string, void>(
+							boost::bind(
+									&GazeboDeployerWorldPlugin::addOrocosComponentIncludePath_cb,
+									this, _1))));
+}
+
+void GazeboDeployerWorldPlugin::addNewOrocosComponentPath(const string path) {
+	string tmpPath = path;
+	if (*tmpPath.rbegin() == '/') {
+		tmpPath.erase(tmpPath.size() - 1);
+	}
+	if (isPathContained(tmpPath)) {
+		gzwarn
+				<< "Following path is already contained in orocos component path: "
+				<< path << endl;
+	} else {
+		gzmsg << "Adding orocos component include path: " << path << endl;
+		loader->setComponentPath(loader->getComponentPath() + path);
+		gzlog << "Updated orocos component path: " << loader->getComponentPath()
+				<< endl;
+	}
+}
+
+bool GazeboDeployerWorldPlugin::isPathContained(const string path) {
+	string currCompPath = loader->getComponentPath();
+	std::istringstream ss(currCompPath);
+	std::string token;
+
+	while (std::getline(ss, token, ':')) {
+		if (*token.rbegin() == '/') {
+			token.erase(token.size() - 1);
+		}
+		if (token.compare(path) == 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
+void GazeboDeployerWorldPlugin::addOrocosComponentIncludePath_cb(
+		boost::shared_ptr<string> path) {
+	addNewOrocosComponentPath(path->c_str());
+}
+
+void GazeboDeployerWorldPlugin::spawnModel_cb(
+		boost::shared_ptr<string> modelFile) {
+	// we'll definitely need MUTEX here TODO
+	/** TODO
+	 * 1. Replace Name, Plugin NS, Initial Pos and Orient
+	 * 2. Pause Simulation
+	 * 3. Publish Model
+	 * 4. Wait for the Model to appear
+	 * 5. Resume Simulation
+	 */
+
+	std::ifstream ifs(modelFile->c_str());
+	std::string model_xml((std::istreambuf_iterator<char>(ifs)),
+			std::istreambuf_iterator<char>());
+
+	// this has to be done in preface and not here!
+	std::string package_prefix("package://");
+	size_t pos1 = model_xml.find(package_prefix, 0);
+	while (pos1 != std::string::npos) {
+		size_t pos2 = model_xml.find("/", pos1 + 10);
+		if (pos2 == std::string::npos || pos1 >= pos2) {
+			gzerr << "Malformed package name in file: " << modelFile->c_str()
+					<< endl;
+			break;
+		} else if (model_xml.at(pos2 - 1) == '.') {
+			std::string package_name = model_xml.substr(pos1 + 10,
+					pos2 - pos1 - 10);
+
+			std::size_t foundLastSlash = modelFile->find_last_of("/");
+			string package_path = modelFile->substr(0, foundLastSlash + 1);
+
+			int offset = 1;
+			if (model_xml.at(pos2 - 2) == '.') offset = 2;
+
+			model_xml.replace(pos1, (pos2 - pos1 - offset), package_path);
+		}
+
+		pos1 = model_xml.find(package_prefix, 0);
+	}
+
+	TiXmlDocument gazebo_model_xml;
+	gazebo_model_xml.Parse(model_xml.c_str());
+
+	// Create a new transport node
+	gazebo::transport::NodePtr node(new gazebo::transport::Node());
+
+	// Initialize the node with the world name
+	node->Init(parent_model_->GetName());
+
+	// Create a publisher on the ~/factory topic
+	gazebo::transport::PublisherPtr factoryPub = node->Advertise<msgs::Factory>(
+			"~/factory");
+
+	gazebo::msgs::Factory msg;
+	gazebo::msgs::Init(msg, "spawn_model");
+	msg.set_sdf(model_xml);
+	factoryPub->Publish(msg);
+
+//	// check if it is spawned TODO
+//	gazebo::physics::ModelPtr specModel = pollForModel(
+//				deployerConfig->model_name(), 1000);
+//		if (!specModel) {
+//			gzerr << "Model " << deployerConfig->model_name()
+//					<< " could not be found. Skipping." << std::endl;
+//			return boost::shared_ptr<bool>(new bool(false));
+//		} else {
+//			cout << "Found model " << deployerConfig->model_name() << "!" << endl;
+//		}
 }
 
 boost::shared_ptr<bool> GazeboDeployerWorldPlugin::deployRTTComponentWithModel_cb(
@@ -222,7 +354,7 @@ gazebo::physics::ModelPtr GazeboDeployerWorldPlugin::pollForModel(
 	int timer = 0;
 	gazebo::physics::ModelPtr model;
 	while (!(model = parent_model_->GetModel(modelName))) {
-		gazebo::common::Time::MSleep(100);
+		gazebo::common::Time::MSleep(10);
 		timer++;
 		if (timer > timeout) {
 			gzerr << "Could not find model: " << modelName
@@ -246,8 +378,8 @@ void GazeboDeployerWorldPlugin::gazeboUpdate() {
 				all_components_.begin();
 
 		while (componentPackItr != all_components_.end()) {
-			std::cout << componentPackItr->rttComponent->getName() << ", "
-					<< componentPackItr->modelPtr.use_count() << std::endl;
+//			std::cout << componentPackItr->rttComponent->getName() << ", "
+//					<< componentPackItr->modelPtr.use_count() << std::endl;
 			if (componentPackItr->modelPtr.use_count() <= 0) {
 				cout << "removing: "
 						<< componentPackItr->rttComponent->getName()

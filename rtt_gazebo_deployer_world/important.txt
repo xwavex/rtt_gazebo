@@ -1,7 +1,7 @@
 Deploy gazebo-rtt Bridge RSB command
 ------------------------------------
 
-./rsb-toolscl0.13 call -l /vol/toolkit/nightly/trusty/x86_64/last/share/rst0.13/proto/sandbox/rst/cogimon/ModelComponentConfig.proto 'spread:/GazeboDeployerWorldPlugin/deployRTTComponentWithModel(pb:.rst.cogimon.ModelComponentConfig:{component_name:"lwr_gazebo" component_type:"LWRGazeboComponent" component_package:"rtt_lwr_gazebo" model_name:"kuka-lwr-arm" script:"test.ops"})'
+./rsb-toolscl0.13 call -l /vol/toolkit/nightly/trusty/x86_64/last/share/rst0.13/proto/sandbox/rst/cogimon/ModelComponentConfg.proto 'spread:/GazeboDeployerWorldPlugin/deployRTTComponentWithModel(pb:.rst.cogimon.ModelComponentConfig:{component_name:"lwr_gazebo" component_type:"LWRGazeboComponent" component_package:"rtt_lwr_gazebo" model_name:"kuka-lwr-arm" script:"/homes/dwigand/code/cogimon/rosws/gazebo_world/src/rtt_lwr_gazebo/scripts/lwr_gazebo.ops"})'
 
 
 Set the right RTT_COMPONENT_PATH

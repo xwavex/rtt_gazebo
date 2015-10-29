@@ -77,7 +77,16 @@ private:
 	 * X. Perhaps this needs to parse an entire Lua Deployment file... TODO TODO TODO
 	 */
 	// callback function for service
-	boost::shared_ptr<bool> deployRTTComponentWithModel_cb(boost::shared_ptr<rst::cogimon::ModelComponentConfig> deployerConfig);
+	boost::shared_ptr<bool> deployRTTComponentWithModel_cb(
+			boost::shared_ptr<rst::cogimon::ModelComponentConfig> deployerConfig);
+
+	void spawnModel_cb(boost::shared_ptr<std::string> modelFile);
+
+	void addOrocosComponentIncludePath_cb(boost::shared_ptr<std::string> path);
+
+	bool isPathContained(const std::string path);
+
+	void addNewOrocosComponentPath(const std::string path);
 
 	// only once condition
 	bool onceDone;
@@ -98,6 +107,8 @@ private:
 
 	// Global rtt component list
 	std::vector<RTT::TaskContext*> deployed_rtt_components_;
+
+	boost::shared_ptr<RTT::ComponentLoader> loader;
 
 	//! Operation for polling the model component
 	typedef RTT::OperationCaller<void(gazebo::physics::ModelPtr)> GazeboUpdateCaller;

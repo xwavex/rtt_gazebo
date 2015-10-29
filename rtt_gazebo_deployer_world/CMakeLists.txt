@@ -9,6 +9,9 @@ find_package(OROCOS-RTT REQUIRED COMPONENTS rtt-scripting rtt-transport-corba)
 include(${OROCOS-RTT_USE_FILE_PATH}/UseOROCOS-RTT.cmake )
 
 find_package(gazebo REQUIRED)
+message(STATUS "GAZEBO version: ${GAZEBO_VERSION}") 
+message(STATUS "GAZEBO_INCLUDE_DIRS: ${GAZEBO_INCLUDE_DIRS}")
+message(STATUS "GAZEBO_LIBRARIES: ${GAZEBO_LIBRARIES}")
 
 find_package(Eigen REQUIRED)
 find_package(Boost COMPONENTS thread REQUIRED)
