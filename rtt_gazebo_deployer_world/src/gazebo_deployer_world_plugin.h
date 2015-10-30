@@ -31,6 +31,7 @@
 //#include <rtt/transports/corba/TaskContextServer.hpp>
 
 #include "RTTComponentPack.h"
+#include "UrdfHelper.h"
 
 namespace rtt_gazebo_deployer_world {
 
@@ -88,6 +89,10 @@ private:
 
 	void addNewOrocosComponentPath(const std::string path);
 
+	void addOrocosPluginIncludePath_cb(boost::shared_ptr<std::string> path);
+
+	void launchScriptFromFile_cb(boost::shared_ptr<std::string> scriptPath);
+
 	// only once condition
 	bool onceDone;
 
@@ -109,6 +114,8 @@ private:
 	std::vector<RTT::TaskContext*> deployed_rtt_components_;
 
 	boost::shared_ptr<RTT::ComponentLoader> loader;
+
+	boost::shared_ptr<UrdfHelper> urdfHelper;
 
 	//! Operation for polling the model component
 	typedef RTT::OperationCaller<void(gazebo::physics::ModelPtr)> GazeboUpdateCaller;

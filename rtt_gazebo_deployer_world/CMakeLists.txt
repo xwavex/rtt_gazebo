@@ -61,7 +61,9 @@ add_library(${PROJECT_NAME}
   src/gazebo_deployer_world_plugin.cpp
   src/gazebo_deployer_world_plugin.h
   src/RTTComponentPack.cpp
-  src/RTTComponentPack.h)
+  src/RTTComponentPack.h
+  src/UrdfHelper.cpp
+  src/UrdfHelper.h)
 #set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS -DRTT_STATIC)
 target_link_libraries(${PROJECT_NAME}
   ${GAZEBO_LIBRARIES}

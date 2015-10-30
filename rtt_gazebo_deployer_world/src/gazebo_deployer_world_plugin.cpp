@@ -40,13 +40,20 @@ GazeboDeployerWorldPlugin::GazeboDeployerWorldPlugin() :
 	gzmsg << "Loading Gazebo RTT Deployer World Plugin" << endl;
 
 	loader = RTT::ComponentLoader::Instance();
+
+	urdfHelper = boost::shared_ptr<UrdfHelper>(new UrdfHelper());
+
 	gzmsg << "initial loader->getComponentPath(): "
 			<< loader->getComponentPath() << endl;
 
 	addNewOrocosComponentPath("/opt/ros/indigo/lib/orocos"); // TODO remove this, find a proper way around!
 
+	// in ros workspace
+	//addNewOrocosComponentPath("/homes/dwigand/code/cogimon/rosws/gazebo_world/devel/lib/orocos"); // only for convenience TODO remove
+
+	// outside of ros workspace
 	addNewOrocosComponentPath(
-			"/homes/dwigand/code/cogimon/rosws/gazebo_world/devel/lib/orocos"); // only for convenience TODO remove
+			"/homes/dwigand/code/cogimon/rtt_lwr_gazebo/build/orocos"); // only for convenience TODO remove
 
 	gzmsg << "New loader->getComponentPath(): " << loader->getComponentPath()
 			<< endl;
@@ -72,6 +79,57 @@ GazeboDeployerWorldPlugin::GazeboDeployerWorldPlugin() :
 							boost::bind(
 									&GazeboDeployerWorldPlugin::addOrocosComponentIncludePath_cb,
 									this, _1))));
+
+	server->registerMethod("addOrocosPluginIncludePath",
+			LocalServer::CallbackPtr(
+					new LocalServer::FunctionCallback<string, void>(
+							boost::bind(
+									&GazeboDeployerWorldPlugin::addOrocosPluginIncludePath_cb,
+									this, _1))));
+
+	server->registerMethod("launchScriptFromFile",
+			LocalServer::CallbackPtr(
+					new LocalServer::FunctionCallback<string, void>(
+							boost::bind(
+									&GazeboDeployerWorldPlugin::launchScriptFromFile_cb,
+									this, _1))));
+}
+
+void GazeboDeployerWorldPlugin::launchScriptFromFile_cb(
+		boost::shared_ptr<string> scriptPath) {
+	// TODO do we need a mutex lock before we run a script?
+	gzmsg << "Execute script: " << scriptPath << endl;
+	if (ends_with(scriptPath->c_str(), ".ops")) {
+		loadOrocosScriptFromFile(scriptPath->c_str());
+	} else if (ends_with(scriptPath->c_str(), ".lua")) {
+		loadLuaScriptFromFile(scriptPath->c_str());
+	} else {
+		gzerr << "Script is neither .ops nor .lua. Check file-extensions."
+				<< std::endl;
+	}
+}
+
+void GazeboDeployerWorldPlugin::addOrocosPluginIncludePath_cb(
+		boost::shared_ptr<string> path) {
+	// /opt/ros/indigo/lib/orocos/gnulinux
+	RTT::plugin::PluginLoader::Instance()->setPluginPath(
+			"" + string(path->c_str()) + ":"
+					+ RTT::plugin::PluginLoader::Instance()->getPluginPath());
+	gzdbg << "PluginPath: "
+			<< RTT::plugin::PluginLoader::Instance()->getPluginPath() << endl;
+
+	if (!RTT::plugin::PluginLoader::Instance()->loadPlugins(path->c_str())) {
+		gzwarn << "Could not load Plugins from: " << path->c_str() << endl;
+	}
+
+	vector<string> tmpPluginList =
+			RTT::plugin::PluginLoader::Instance()->listPlugins();
+	for (int i = 0; i < tmpPluginList.size(); i++) {
+		gzdbg << "PluginList[" << i << "] = " << tmpPluginList[i] << endl;
+	}
+
+//	RTT::plugin::PluginLoader::Instance()->loadService("scripting", deployer);
+//	RTT::plugin::PluginLoader::Instance()->loadService("Lua", deployer);
 }
 
 void GazeboDeployerWorldPlugin::addNewOrocosComponentPath(const string path) {
@@ -123,41 +181,31 @@ void GazeboDeployerWorldPlugin::spawnModel_cb(
 	 * 5. Resume Simulation
 	 */
 
-	std::ifstream ifs(modelFile->c_str());
-	std::string model_xml((std::istreambuf_iterator<char>(ifs)),
-			std::istreambuf_iterator<char>());
-
-	// this has to be done in preface and not here!
-	std::string package_prefix("package://");
-	size_t pos1 = model_xml.find(package_prefix, 0);
-	while (pos1 != std::string::npos) {
-		size_t pos2 = model_xml.find("/", pos1 + 10);
-		if (pos2 == std::string::npos || pos1 >= pos2) {
-			gzerr << "Malformed package name in file: " << modelFile->c_str()
-					<< endl;
-			break;
-		} else if (model_xml.at(pos2 - 1) == '.') {
-			std::string package_name = model_xml.substr(pos1 + 10,
-					pos2 - pos1 - 10);
-
-			std::size_t foundLastSlash = modelFile->find_last_of("/");
-			string package_path = modelFile->substr(0, foundLastSlash + 1);
-
-			int offset = 1;
-			if (model_xml.at(pos2 - 2) == '.') offset = 2;
-
-			model_xml.replace(pos1, (pos2 - pos1 - offset), package_path);
-		}
-
-		pos1 = model_xml.find(package_prefix, 0);
+	string model_xml;
+	if (!urdfHelper->spawnURDFModel(modelFile->c_str(), model_xml)) {
+		return;
 	}
 
 	TiXmlDocument gazebo_model_xml;
-	gazebo_model_xml.Parse(model_xml.c_str());
+
+	// robot name
+	string robotName = "kuka-lwr";
+	// robot namespace
+	string robotNS = "";
+	// get initial pose of model
+	gazebo::math::Vector3 initial_xyz(0.0, 0.0, 0.0);
+	// get initial roll pitch yaw (fixed frame transform) (wxyz)
+	gazebo::math::Quaternion initial_q(1, 0, 0, 0);
+	// world reference frame "", world, map, /map
+	string referenceFrame = "";
+
+	if (!urdfHelper->spawnSDFModel(gazebo_model_xml, parent_model_, model_xml,
+			robotName, robotNS, initial_xyz, initial_q, referenceFrame)) {
+		return;
+	}
 
 	// Create a new transport node
 	gazebo::transport::NodePtr node(new gazebo::transport::Node());
-
 	// Initialize the node with the world name
 	node->Init(parent_model_->GetName());
 
@@ -165,21 +213,68 @@ void GazeboDeployerWorldPlugin::spawnModel_cb(
 	gazebo::transport::PublisherPtr factoryPub = node->Advertise<msgs::Factory>(
 			"~/factory");
 
+	// push to factory iface
+	std::ostringstream stream;
+	stream << gazebo_model_xml;
+	std::string gazebo_model_xml_string = stream.str();
+
+	// publish to factory topic
 	gazebo::msgs::Factory msg;
 	gazebo::msgs::Init(msg, "spawn_model");
-	msg.set_sdf(model_xml);
+	msg.set_sdf(gazebo_model_xml_string);
+
+	// FIXME: should use entity_info or add lock to World::receiveMutex
+	// looking for Model to see if it exists already
+	gazebo::msgs::Request *entity_info_msg = gazebo::msgs::CreateRequest(
+			"entity_info", robotName);
+
+	gazebo::transport::PublisherPtr requestPub = node->Advertise<
+			gazebo::msgs::Request>("~/request");
+	requestPub->Publish(*entity_info_msg, true);
+	// todo: should wait for response response_sub_, check to see that if _msg->response == "nonexistant"
+
+	gazebo::physics::ModelPtr model = parent_model_->GetModel(robotName);
+	if (model) {
+		gzerr << "SpawnModel: Failure - model name " << robotName.c_str()
+				<< " already exist." << endl;
+		return; // false
+	}
+
+	// Publish the factory message
 	factoryPub->Publish(msg);
 
-//	// check if it is spawned TODO
-//	gazebo::physics::ModelPtr specModel = pollForModel(
-//				deployerConfig->model_name(), 1000);
-//		if (!specModel) {
-//			gzerr << "Model " << deployerConfig->model_name()
-//					<< " could not be found. Skipping." << std::endl;
-//			return boost::shared_ptr<bool>(new bool(false));
-//		} else {
-//			cout << "Found model " << deployerConfig->model_name() << "!" << endl;
-//		}
+	/// FIXME: should change publish to direct invocation World::LoadModel() and/or
+	///        change the poll for Model existence to common::Events based check.
+
+	/// \brief poll and wait, verify that the model is spawned within Hardcoded 10 seconds
+
+	gazebo::common::Time timeout(10.0);
+
+	boost::shared_ptr<gazebo::common::Timer> modelDeployTimer(
+			new gazebo::common::Timer());
+
+	modelDeployTimer->Start();
+	while (modelDeployTimer->GetRunning()) {
+		if (modelDeployTimer->GetElapsed() > timeout) {
+			gzerr
+					<< "SpawnModel: Model pushed to spawn queue, but spawn service timed out waiting for model to appear in simulation under the name "
+					<< robotName << endl;
+			modelDeployTimer->Stop();
+			return; // false
+		}
+
+		{
+			//boost::recursive_mutex::scoped_lock lock(*world->GetMRMutex());
+			if (parent_model_->GetModel(robotName)) {
+				modelDeployTimer->Stop();
+				break;
+			}
+		}
+		usleep(2000);
+	}
+
+//	parent_model_->PrintEntityTree();
+	return;// true
 }
 
 boost::shared_ptr<bool> GazeboDeployerWorldPlugin::deployRTTComponentWithModel_cb(
@@ -204,8 +299,6 @@ boost::shared_ptr<bool> GazeboDeployerWorldPlugin::deployRTTComponentWithModel_c
 
 	boost::shared_ptr<RTT::ComponentLoader> loader =
 			RTT::ComponentLoader::Instance();
-	cout << "loader->getComponentPath(): " << loader->getComponentPath()
-			<< endl;
 
 	// import RTT package // i.e. export RTT_COMPONENT_PATH=/homes/dwigand/code/cogimon/rosws/gazebo_world/devel/lib/orocos:$RTT_COMPONENT_PATH
 	if (loader->import(deployerConfig->component_package(),
@@ -343,6 +436,8 @@ void GazeboDeployerWorldPlugin::Load(gazebo::physics::WorldPtr _parent,
 	parent_model_ = _parent;
 
 	deployer = new OCL::DeploymentComponent("gazebo");
+	RTT::plugin::PluginLoader::Instance()->loadPlugins(
+			"/opt/ros/indigo/lib/orocos/gnulinux");
 
 //	deployer->import("rtt_rosnode");
 //	deployer->import("rtt_rosdeployment");
@@ -403,10 +498,14 @@ void GazeboDeployerWorldPlugin::loadOrocosScriptFromFile(
 		std::string oro_script_file) {
 	gzlog << "Running orocos ops script from file: " << oro_script_file << "..."
 			<< std::endl;
-	if (!deployer->runScript(oro_script_file)) {
+
+	std::ifstream ifs(oro_script_file.c_str());
+	std::string oro_script((std::istreambuf_iterator<char>(ifs)),
+			std::istreambuf_iterator<char>());
+
+	if (!deployer->getProvider<RTT::Scripting>("scripting")->eval(oro_script)) { //if (!deployer->runScript(oro_script)) {
 		gzerr << "Could not run ops script from file " << oro_script_file << "!"
 				<< std::endl;
-		// TODO perhaps throw an error?!
 		return;
 	}
 
