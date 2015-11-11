@@ -24,7 +24,7 @@
 #include <rtt/transports/corba/corba.h>
 #include <rtt/transports/corba/TaskContextServer.hpp>
 
-#include <rtt_rosclock/rtt_rosclock.h>
+#include "rtt_clock.h"
 
 namespace rtt_gazebo_system {
 

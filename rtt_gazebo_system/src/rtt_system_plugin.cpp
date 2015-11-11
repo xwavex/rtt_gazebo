@@ -24,12 +24,12 @@
 #include <rtt/transports/corba/TaskContextServer.hpp>
 
 // RTT/ROS Simulation Clock Activity
-#include <rtt_rosclock/rtt_rosclock.h>
+#include "rtt_clock.h"
 
-#ifdef RTT_GAZEBO_DEBUG
-#include <rtt_rosclock/prof.h>
-#include <rtt_rosclock/throttle.h>
-#endif
+//#ifdef RTT_GAZEBO_DEBUG
+//#include <rtt_clock/prof.h>
+//#include <rtt_clock/throttle.h>
+//#endif
 
 #include "rtt_system_plugin.h"
 
@@ -42,7 +42,7 @@ void RTTSystemPlugin::Load(int argc, char **argv)
 
   RTT::Logger::log().setStdStream(std::cerr);
   RTT::Logger::log().mayLogStdOut(true);
-  //RTT::Logger::log().setLogLevel(RTT::Logger::Info);
+  RTT::Logger::log().setLogLevel(RTT::Logger::Info);
 
   // Setup TaskContext server if necessary
   if(CORBA::is_nil(RTT::corba::TaskContextServer::orb)) {
@@ -57,8 +57,8 @@ void RTTSystemPlugin::Load(int argc, char **argv)
 void RTTSystemPlugin::Init()
 {
   // Initialize and enable the simulation clock
-  rtt_rosclock::use_manual_clock();
-  rtt_rosclock::enable_sim();
+  rtt_clock::use_manual_clock();
+  rtt_clock::enable_sim();
 
   update_connection_ =
     gazebo::event::Events::ConnectWorldUpdateEnd(
@@ -100,23 +100,25 @@ void RTTSystemPlugin::updateClockLoop()
 
     // Update the clock from the simulation time and execute the SimClockActivities
     // NOTE: all orocos TaskContexts which use a SimClockActivity are updated within this call
-#ifdef RTT_GAZEBO_DEBUG
-    static rtt_rosclock::WallProf prof(5.0);
-    static rtt_rosclock::WallThrottle throttle(ros::Duration(1.0));
+//#ifdef RTT_GAZEBO_DEBUG
+//    static rtt_clock::WallProf prof(5.0);
+//    static rtt_clock::WallThrottle throttle(ros::Duration(1.0));
+//
+//    prof.tic();
+//#endif
 
-    prof.tic();
-#endif
+    const uint64_t one_E9 = 1000000000ll;
 
-    rtt_rosclock::update_sim_clock(ros::Time(gz_time.sec, gz_time.nsec));
+    rtt_clock::update_sim_clock(gz_time.sec * one_E9 + gz_time.nsec);
 
-#ifdef RTT_GAZEBO_DEBUG
-    prof.toc();
-    if(throttle.ready()) {
-      prof.analyze();
-      RTT::log(RTT::Debug) << prof.mean() << " +/- " << prof.stddev() <<" [s] ("<<prof.n()<<") for update_sim_clock()" << RTT::endlog();
-    }
-    static ros::Time last_update_time = rtt_rosclock::rtt_wall_now();
-#endif
+//#ifdef RTT_GAZEBO_DEBUG
+//    prof.toc();
+//    if(throttle.ready()) {
+//      prof.analyze();
+//      RTT::log(RTT::Debug) << prof.mean() << " +/- " << prof.stddev() <<" [s] ("<<prof.n()<<") for update_sim_clock()" << RTT::endlog();
+//    }
+//    static ros::Time last_update_time = rtt_clock::rtt_wall_now();
+//#endif
   }
 }
 
