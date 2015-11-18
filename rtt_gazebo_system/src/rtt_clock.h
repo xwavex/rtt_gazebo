@@ -3,7 +3,6 @@
 
 #include <rtt/RTT.hpp>
 #include <rtt/os/TimeService.hpp>
-//#include <ros/time.h>
 
 namespace rtt_clock {
 
@@ -28,35 +27,14 @@ namespace rtt_clock {
    */
   const uint64_t host_now();
 
-//  /** \brief Get the current time according to CLOCK_HOST_REALTIME or the
-//   * wall time.
-//   */
-//  const ros::Time host_wall_now();
-
   /** \brief Get the current time according to RTT
    *
    * If the simulation clock is enabled, this will return the simulated time.
    */
   const uint64_t rtt_now();
-  
-//  /** \brief Get the current wall time according to RTT
-//   *
-//   * Even if the simualtion clock is enabled, this will still return the wall
-//   * clock time.
-//   */
-//  const ros::Time rtt_wall_now();
-
-//  //! Get the difference in seconds between rtt_wall_now() and host_wall_now()
-//  const RTT::Seconds host_offset_from_rtt();
 
   //! Set a TaskContext to use a periodic simulation clock activity
   const bool set_sim_clock_activity(RTT::TaskContext *t);
-
-  //! Use ROS /clock topic for time measurement
-  void use_ros_clock_topic();
-
-  //! Use manual clock updates
-  void use_manual_clock();
 
   //! Use a simulated clock source
   const bool enable_sim();

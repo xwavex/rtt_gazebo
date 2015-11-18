@@ -26,11 +26,6 @@
 // RTT/ROS Simulation Clock Activity
 #include "rtt_clock.h"
 
-//#ifdef RTT_GAZEBO_DEBUG
-//#include <rtt_clock/prof.h>
-//#include <rtt_clock/throttle.h>
-//#endif
-
 #include "rtt_system_plugin.h"
 
 using namespace rtt_gazebo_system;
@@ -46,18 +41,18 @@ void RTTSystemPlugin::Load(int argc, char **argv)
 
   // Setup TaskContext server if necessary
   if(CORBA::is_nil(RTT::corba::TaskContextServer::orb)) {
-	  std::cout << "Launching ORB!" << std::endl;
+	  gzlog << "Launching ORB!" << std::endl;
     // Initialize orb
     RTT::corba::TaskContextServer::InitOrb(argc, argv);
     // Propcess orb requests in a thread
     RTT::corba::TaskContextServer::ThreadOrb();
   }
+
 }
 
 void RTTSystemPlugin::Init()
 {
   // Initialize and enable the simulation clock
-  rtt_clock::use_manual_clock();
   rtt_clock::enable_sim();
 
   update_connection_ =
@@ -94,31 +89,12 @@ void RTTSystemPlugin::updateClock()
 void RTTSystemPlugin::updateClockLoop()
 {
   {
-
     // Get the simulation time
     gazebo::common::Time gz_time = gazebo::physics::get_world()->GetSimTime();
-
-    // Update the clock from the simulation time and execute the SimClockActivities
-    // NOTE: all orocos TaskContexts which use a SimClockActivity are updated within this call
-//#ifdef RTT_GAZEBO_DEBUG
-//    static rtt_clock::WallProf prof(5.0);
-//    static rtt_clock::WallThrottle throttle(ros::Duration(1.0));
-//
-//    prof.tic();
-//#endif
 
     const uint64_t one_E9 = 1000000000ll;
 
     rtt_clock::update_sim_clock(gz_time.sec * one_E9 + gz_time.nsec);
-
-//#ifdef RTT_GAZEBO_DEBUG
-//    prof.toc();
-//    if(throttle.ready()) {
-//      prof.analyze();
-//      RTT::log(RTT::Debug) << prof.mean() << " +/- " << prof.stddev() <<" [s] ("<<prof.n()<<") for update_sim_clock()" << RTT::endlog();
-//    }
-//    static ros::Time last_update_time = rtt_clock::rtt_wall_now();
-//#endif
   }
 }
 

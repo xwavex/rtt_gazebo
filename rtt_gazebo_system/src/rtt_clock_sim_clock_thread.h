@@ -45,11 +45,6 @@
 #include <rtt/os/Thread.hpp>
 #include <rtt/os/TimeService.hpp>
 
-//#include <ros/ros.h>
-//#include <ros/subscriber.h>
-//#include <ros/callback_queue.h>
-//#include <rosgraph_msgs/Clock.h>
-
 namespace rtt_clock {
 
   /** 
@@ -67,19 +62,6 @@ namespace rtt_clock {
     static void Release();
 
     virtual ~SimClockThread();
-
-    //! Simulation clock sources
-    enum SimClockSource {
-      SIM_CLOCK_SOURCE_MANUAL = 0,
-      SIM_CLOCK_SOURCE_ROS_CLOCK_TOPIC = 1
-    };
-
-    //! Set the simulation clock source by ID (see ClockSource enum)
-    bool setClockSource(SimClockSource clock_source);
-    //! Set the clock source to use the ROS /clock topic
-    bool useROSClockTopic();
-    //! Set the clock source to use a manual source, i.e. call `updateClock()` manually
-    bool useManualClock();
 
     //! Check if simulation time is enabled
     bool simTimeEnabled() const;
@@ -112,27 +94,14 @@ namespace rtt_clock {
 
     // RTT::os::Thread interface
     virtual bool initialize();
-//    virtual void loop();
-//    virtual bool breakLoop();
+
     virtual void finalize();
 
     //! Convenient pointer to RTT time service
     RTT::os::TimeService *time_service_;
-
-    //! Current clock source
-    SimClockSource clock_source_;
     
     //! Keep running the thread loop if this is set to true
     bool process_callbacks_;
-
-//    //! ROS NodeHandle for communication
-//    ros::NodeHandle nh_;
-//    //! ROS /clock topic subscriber
-//    ros::Subscriber clock_subscriber_;
-//    //! Custom callback queue used in this thread
-//    ros::CallbackQueue callback_queue_;
-//    //! ROS message callback for /clock topic
-//    void clockMsgCallback(const rosgraph_msgs::ClockConstPtr& clock);
   };
 
 }
